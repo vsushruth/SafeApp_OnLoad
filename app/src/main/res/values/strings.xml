@@ -1,6 +1,8 @@
 <resources>
     <string name="app_name">RoadMap</string>
     <string name="title_activity_maps">Map</string>
+    <string name="title_activity_check_otp">Authorizing</string>
+    <string name="title_activity_addcp">Check Points</string>
     <string name="google_maps_key" templateMergeStrategy="preserve" translatable="false">AIzaSyBALWN_MWq_e-9JKQbfTVXrFZgOVFJYjwQ</string>
     <string name="title_activity_path">Map</string>
 </resources>

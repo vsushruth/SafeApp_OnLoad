@@ -29,12 +29,24 @@
 
         <activity
             android:name=".MapsActivity"
-            android:label="@string/title_activity_maps">
+            android:label="@string/title_activity_maps"
+            android:theme="@style/AppTheme.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".addCheckPoint"
+            android:label="@string/title_activity_addcp"
+            android:parentActivityName=".MapsActivity">
+        </activity>
+
+        <activity android:name=".checkOtp"
+            android:label="@string/title_activity_check_otp"
+            android:parentActivityName=".addCheckPoint">
         </activity>
         <!--
              The API key for Google Maps-based APIs is defined as a string resource.

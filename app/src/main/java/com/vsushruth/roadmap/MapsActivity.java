@@ -10,6 +10,7 @@ import androidx.fragment.app.FragmentActivity;
 import android.content.Intent;
 import android.location.Address;
 import android.location.Geocoder;
+import android.net.Uri;
 import android.os.Bundle;
 
 import com.google.android.gms.maps.CameraUpdate;
@@ -17,6 +18,8 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
@@ -26,6 +29,7 @@ import android.location.Location;
 import android.os.Bundle;
 
 import android.util.Log;
+import android.util.Pair;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -150,10 +154,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Button mSearchButton;
     private Button mAddCP;
     private ImageView mGps;
+    private ImageView mSos;
+    private Button mNav;
     private RelativeLayout mLayout;
 
     private Address address;
     private LatLng mPoint;
+    private Marker prevPoint = null;
 
     private static final String TAG = MapsActivity.class.getSimpleName();
 
@@ -170,6 +177,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     LatLng cur = null;
     boolean curLocationflag = false;
     ArrayList<DB> DBArray = new ArrayList<>();
+    ArrayList<DB> DBGlobalArray = new ArrayList<>();
 
     private static final String KEY_CAMERA_POSITION = "camera_position";
     private static final String KEY_LOCATION = "location";
@@ -177,7 +185,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     // Write a message to the database
     FirebaseDatabase database = FirebaseDatabase.getInstance();
-    DatabaseReference myRef = database.getReference();
+    DatabaseReference myRef = database.getReference("Points");
 
 
     @Override
@@ -222,6 +230,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mLayout = (RelativeLayout) findViewById(R.id.relLayout2);
         mAddCP = (Button) findViewById(R.id.addCP);
         mGps = (ImageView) findViewById(R.id.ic_gps);
+        mSos = (ImageView) findViewById(R.id.ic_sos);
+
+        mNav = (Button) findViewById(R.id.navigate);
 
         getLocationPermission();
         updateLocationUI();
@@ -252,11 +263,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         });
 
 
-        mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
+
+        mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
             @Override
-            public void onMapClick(final LatLng latLng) {
-                mMap.clear();
-                mMap.addMarker(new MarkerOptions().position(latLng).title("Marker placed"));
+            public void onMapLongClick(final LatLng latLng) {
+                //marker.remove(prevPoint);
+                if(prevPoint != null)
+                    prevPoint.remove();
+                prevPoint = mMap.addMarker(new MarkerOptions().position(latLng).title("Marker placed").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
                 mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
                 
                 mPoint = latLng;
@@ -283,16 +297,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 //                                    DB latLng1 = snapshot1.getValue(DB.class);
                                     Log.e(TAG, " " + snapshot1.child("latLng").child("latitude").getValue());
                                 }
-                            dataSnapshot.child(stateName + "/" + cityName).getValue().getClass();
+//                            dataSnapshot.child(stateName).child(cityName).getValue().getClass();
 //                            Log.e(TAG, "Exception: " + snapshot.getValue() + dataSnapshot.child(stateName + "/" + cityame).getValue().getClass());
                             }
                         }
 
-//                Log.e(String.valueOf(Log.ERROR), dataSnapshot.getValue().toString());
-//                for(i = ; i < )
-//                {
-//
-//                }
 
                     @Override
                     public void onCancelled(@NonNull DatabaseError databaseError) {
@@ -304,16 +313,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 //                Timestamp.getTime();
                 db.setTimestamp(getTimeNow());
 //                db.setState(stateName);
-//                db.setCountry(countryName);
                 db.setLatLng(latLng);
-
-                myRef = database.getReference(stateName);
-                if(cityName == null) {
-                    myRef.child("Unspecified").push().setValue(db);
-                }
-                else {
-                    myRef.child(cityName).push().setValue(db);
-                }
+                myRef = myRef.child(stateName);
+//                if(cityName == null) {
+//                    myRef1.child("Unspecified").push().setValue(db);
+//                }
+//                else {
+//                    myRef1.child(cityName).push().setValue(db);
+//                }
 
             }
         });
@@ -327,6 +334,85 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
 
+        mSos.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                LatLng nearest = new LatLng(100, 100);
+                for(DB d: DBArray) {
+
+                    if(distance(cur, nearest) > distance(cur, d.latLng))
+                    {
+                        nearest = d.latLng;
+                    }
+                }
+                route(cur, nearest, null);
+            }
+        });
+
+        mNav.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                LatLng source = cur;
+                double maxDist = distance(source, mPoint);
+                ArrayList<LatLng> wayPoints = new ArrayList<>();
+                boolean t = true;
+                while(t){
+
+                    LatLng best = source;
+                    double dis = 2 * distance(source, mPoint);
+
+                    if(distance(source, mPoint) < 10){
+                        for (int i = 0; i < DBArray.size(); i++) {
+                            if (distance(source, DBArray.get(i).latLng) + distance(mPoint, DBArray.get(i).latLng) < dis) {
+                                best = DBArray.get(i).latLng;
+                                dis = distance(source, DBArray.get(i).latLng) + distance(mPoint, DBArray.get(i).latLng);
+                                mMap.addMarker(new MarkerOptions().position(best).title("" + (distance(source, best) + distance(mPoint, best))));
+                            }
+                        }
+                        wayPoints.add(best);
+                        break;
+                    }
+                    else{
+                        int x = 0;
+                        do{
+                            if(x + 10 < maxDist)
+                                x += 10;
+                            else{
+                                t = false;
+                                break;
+//                                x += (maxDist - x);
+                            }
+
+                            for (int i = 0; i < DBGlobalArray.size(); i++) {
+                                if(distance(source, DBGlobalArray.get(i).latLng) < x){
+                                    if (distance(cur, DBGlobalArray.get(i).latLng) + distance(mPoint, DBGlobalArray.get(i).latLng) < dis) {
+                                        best = DBGlobalArray.get(i).latLng;
+                                        dis = distance(cur, DBGlobalArray.get(i).latLng) + distance(mPoint, DBGlobalArray.get(i).latLng);
+                                        mMap.addMarker(new MarkerOptions().position(best).title("" + (distance(cur, best) + distance(mPoint, best))));
+                                    }
+                                }
+                            }
+
+                        }while(source == best);
+
+                        Log.e(TAG, "Int: " + best);
+                        source = best;
+                        if(!wayPoints.contains(best))
+                            wayPoints.add(best);
+                    }
+                }
+                if (wayPoints.size() == 0)
+                {
+                    GenerateReport(cur, mPoint);
+                }
+
+
+
+                route(cur, mPoint, wayPoints);
+            }
+
+
+        });
 
         mSearchButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -366,25 +452,29 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mAddCP.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-
-                Log.e(TAG, "Adsf");
-                Toast.makeText(MapsActivity.this, "Click detected", Toast.LENGTH_SHORT).show();
-
-                if(mPoint == null) {
-                    Toast.makeText(MapsActivity.this, "Its fuckin null", Toast.LENGTH_LONG).show();
-                }
+//                Log.e(TAG, "Adsf");
+//                Toast.makeText(MapsActivity.this, "Click detected", Toast.LENGTH_SHORT).show();
+//
+//                if(mPoint == null) {
+//                    Toast.makeText(MapsActivity.this, "Its fuckin null", Toast.LENGTH_LONG).show();
+//                }
 
                 Bundle args = new Bundle();
                 args.putParcelable("address_details", mPoint);
 
-                //Intent intent = new Intent(MapsActivity.this, addCheckPoint.class);
-                //intent.putExtra("bundle", args);
-                //startActivity(intent);
+                Intent intent = new Intent(MapsActivity.this, addCheckPoint.class);
+                intent.putExtra("bundle", args);
+                startActivity(intent);
             }
         });
 
 
 
+    }
+
+    private void GenerateReport(LatLng cur, LatLng mPoint) {
+        DatabaseReference ref = database.getReference("report");
+        ref.child("" + getTimeNow()).setValue(new Pair<LatLng, LatLng>(cur, mPoint));
     }
 
     private void getDeviceLocation() {
@@ -428,13 +518,31 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 //                                            Log.e(String.valueOf(Log.ERROR), "curLF " + dataSnapshot.child(curStateName).child(curCityName).getValue().toString());
                                             for(DataSnapshot dataSnapshot1: dataSnapshot.child(curStateName).child(curCityName).getChildren())
                                             {
-                                                Log.e(String.valueOf(Log.ERROR), "curLF " + dataSnapshot1.getValue() + dataSnapshot1.child("latLng").child("latitude").getValue(double.class));
+//                                                Log.e(String.val  ueOf(Log.ERROR), "curLF " + dataSnapshot1.getValue() + dataSnapshot1.child("latLng").child("latitude").getValue(double.class));
                                                 DB d1 = new DB();
                                                 d1.setLatLng(new LatLng(dataSnapshot1.child("latLng").child("latitude").getValue(double.class), dataSnapshot1.child("latLng").child("longitude").getValue(double.class)));
                                                 DBArray.add(d1);
-                                                mMap.addMarker(new MarkerOptions().position(d1.latLng).title("Marker1"));
+                                                d1.setCount(dataSnapshot1.child("count").getValue(int.class));
+                                                mMap.addMarker(new MarkerOptions().position(d1.latLng).title("Safe spot"));
 //                                                mMap.moveCamera(CameraUpdateFactory.newLatLng(d1.latLng));
                                                 Log.e(String.valueOf(Log.ERROR), "curLF Arr" + d1.latLng);
+                                            }
+                                            for(DataSnapshot dataSnapshot1: dataSnapshot.getChildren())
+                                            {
+                                                for(DataSnapshot dataSnapshot2: dataSnapshot1.getChildren())
+                                                {
+                                                    for(DataSnapshot dataSnapshot3: dataSnapshot2.getChildren())
+                                                    {
+//                                                        Log.e(String.valueOf(Log.ERROR), "curLF ArrGlobal" + dataSnapshot3);
+                                                        DB d1 = new DB();
+                                                        d1.setLatLng(new LatLng(dataSnapshot3.child("latLng").child("latitude").getValue(double.class), dataSnapshot3.child("latLng").child("longitude").getValue(double.class)));
+                                                        d1.setCount(dataSnapshot3.child("count").getValue(int.class));
+                                                        DBGlobalArray.add(d1);
+
+//                                                        Log.e(String.valueOf(Log.ERROR), "curLF ArrGlobal" + d1.latLng);
+                                                    }
+                                                }
+
                                             }
 //
                                         }
@@ -517,6 +625,47 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     {
         return System.currentTimeMillis()/1000;
     }
+
+    void route(LatLng a, LatLng b, ArrayList<LatLng> wayPoints)
+    {
+//    LatLng a = new LatLng(18.52, 73.868315);
+//
+//    LatLng b = new LatLng(18.518496, 73.879259); //?saddr=" + a.latitude +","+ a.longitude + "&daddr="+b.latitude+","+b.longitude
+
+        String uri = "https://www.google.com/maps/dir/?api=1&origin=" + a.latitude + "," + a.longitude + "&destination=" + b.latitude + "," + b.longitude; // + "&waypoints=18.520561,73.872435|18.519254,73.876614|18.52152,73.877327|18.52019,73.879935&travelmode=driving";
+        if(wayPoints != null) {
+            for (int i = 0; i < wayPoints.size(); i++) {
+                LatLng wayPoint = wayPoints.get(i);
+                if (i == 0)
+                    uri += "&waypoints=";
+                else
+                    uri += "|";
+                uri += wayPoint.latitude + "," + wayPoint.longitude;
+            }
+        }
+        uri += "&travelmode=driving";
+        Intent intent = new Intent(android.content.Intent.ACTION_VIEW, Uri.parse(uri));
+        intent.setClassName("com.google.android.apps.maps", "com.google.android.maps.MapsActivity");
+        startActivity(intent);
+    }
+
+    private static double distance(LatLng a, LatLng b) {
+        double lat1 = a.latitude, lon1 = a.longitude, lat2 = b.latitude, lon2 = b.longitude;
+        if ((lat1 == lat2) && (lon1 == lon2)) {
+            return 0;
+        }
+        else {
+            double theta = lon1 - lon2;
+            double dist = Math.sin(Math.toRadians(lat1)) * Math.sin(Math.toRadians(lat2)) + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) * Math.cos(Math.toRadians(theta));
+            dist = Math.acos(dist);
+            dist = Math.toDegrees(dist);
+            dist = dist * 60 * 1.1515;
+            dist = dist * 1.609344;
+
+            return (dist);
+        }
+    }
+
 
 }
 
