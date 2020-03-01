@@ -345,6 +345,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         nearest = d.latLng;
                     }
                 }
+                Toast.makeText(getApplicationContext(), "NAVIGATING TO CLOSEST SAFE SPOT", LENGTH_LONG).show();
                 route(cur, nearest, null);
             }
         });
@@ -407,7 +408,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 }
 
 
-
+                Toast.makeText(getApplicationContext(), "NAVIGATING NOW", LENGTH_LONG).show();
                 route(cur, mPoint, wayPoints);
             }
 
@@ -435,8 +436,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     address = list.get(0);
                     if (address.hasLatitude() && address.hasLongitude()) {
                         mPoint = new LatLng(address.getLatitude(), address.getLongitude());
-                        mMap.clear();
-                        mMap.addMarker(new MarkerOptions().position(mPoint));
+                        if(prevPoint != null)
+                            prevPoint.remove();
+
+                        prevPoint = mMap.addMarker(new MarkerOptions().position(mPoint).icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
                         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mPoint, DEFAULT_ZOOM));
 
                         mLayout.setVisibility(View.VISIBLE);
